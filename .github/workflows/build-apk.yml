@@ -23,10 +23,21 @@ jobs:
           status=${PIPESTATUS[0]}
           echo "Flutter exit code: $status"
           if [ $status -ne 0 ]; then
-            echo "=== Last 50 lines ==="
-            tail -50 build_output.log
+            echo "=== Last 200 lines ==="
+            tail -200 build_output.log
+            echo "=== Build directory listing ==="
+            find build -name "*.apk" -o -name "*.aab" 2>/dev/null | head -20
+            ls -la build/app/outputs/ 2>/dev/null || echo "No outputs dir"
             exit $status
           fi
+          echo "Build succeeded!"
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build_output.log
 
       - uses: actions/upload-artifact@v4
         with:
