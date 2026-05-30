@@ -18,6 +18,11 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Accept Android licenses
+        run: |
+          yes | flutter doctor --android-licenses 2>&1 || true
+          flutter doctor -v | grep -E "Android toolchain|licenses" || true
+
       - name: Check environment
         run: |
           flutter doctor -v
