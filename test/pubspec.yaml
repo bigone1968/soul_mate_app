@@ -1,0 +1,28 @@
+name: soul_mate
+description: "A highly anthropomorphic AI companion app"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  provider: ^6.1.2
+  http: ^1.2.2
+  audioplayers: ^6.1.0
+  sensors_plus: ^6.1.1
+  shared_preferences: ^2.3.4
+  record: ^7.0.0
+  web_socket_channel: ^3.0.1
+  crypto: ^3.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
