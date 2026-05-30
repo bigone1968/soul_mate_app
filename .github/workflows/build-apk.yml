@@ -42,6 +42,15 @@ jobs:
         continue-on-error: true
         run: |
           export GRADLE_OPTS="-Dorg.gradle.daemon=false"
+          echo "=== DIAGNOSTICS ==="
+          which flutter
+          FLUTTER_SDK=$(dirname $(dirname $(which flutter)))
+          echo "FLUTTER_SDK=$FLUTTER_SDK"
+          echo "FLUTTER_ROOT env=$FLUTTER_ROOT"
+          echo "=== Checking local.properties ==="
+          cat android/local.properties 2>/dev/null || echo "local.properties MISSING"
+          ls -la android/local.properties 2>/dev/null || echo "File not found"
+          echo "=== Starting build ==="
           flutter build apk --debug 2>&1 | tee build_output.log
           exit ${PIPESTATUS[0]}
 
