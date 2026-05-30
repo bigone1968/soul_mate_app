@@ -23,19 +23,9 @@ android {
 
     buildTypes {
         debug {
-            externalNativeBuild {
-                cmake {
-                    arguments("-Wno-dev", "--no-warn-unused-cli", "-DCMAKE_BUILD_TYPE=debug", "-DCMAKE_CROSSCOMPILING=TRUE", "-DCMAKE_C_COMPILER_WORKS=TRUE", "-DCMAKE_CXX_COMPILER_WORKS=TRUE", "-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
-                }
-            }
         }
         release {
             signingConfig = signingConfigs.getByName("debug")
-            externalNativeBuild {
-                cmake {
-                    arguments("-Wno-dev", "--no-warn-unused-cli", "-DCMAKE_BUILD_TYPE=release", "-DCMAKE_CROSSCOMPILING=TRUE", "-DCMAKE_C_COMPILER_WORKS=TRUE", "-DCMAKE_CXX_COMPILER_WORKS=TRUE", "-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
-                }
-            }
         }
     }
 }

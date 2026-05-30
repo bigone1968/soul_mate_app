@@ -33,27 +33,48 @@ jobs:
           echo "=== NDK ==="
           ls /usr/local/lib/android/sdk/ndk/ 2>/dev/null || echo "No NDK"
 
-      - name: Build APK
+      - name: Build APK (verbose)
         run: |
-          flutter build apk --debug 2>&1 | tee build_output.log
+          flutter build apk --debug --verbose 2>&1 | tee build_output_full.log
           status=${PIPESTATUS[0]}
           echo "Flutter exit code: $status"
           if [ $status -ne 0 ]; then
-            echo "=== Last 200 lines ==="
-            tail -200 build_output.log
-            echo "=== Build directory listing ==="
-            find build -name "*.apk" -o -name "*.aab" 2>/dev/null | head -20
-            ls -la build/app/outputs/ 2>/dev/null || echo "No outputs dir"
-            exit $status
+            echo "=== Gradle output (last 500 lines) ==="
+            grep -n "Gradle" build_output_full.log | tail -50
+            echo "=== Error/Warning lines ==="
+            grep -iE "(error|failure|failed|exception|BUILD FAILED)" build_output_full.log || echo "No errors found"
+            echo "=== APK search ==="
+            find /home/runner/work/soul_mate_app -name "*.apk" 2>/dev/null
+            echo "=== Full build tree ==="
+            find /home/runner/work/soul_mate_app/soul_mate_app/build -type f 2>/dev/null | head -100
+            echo "=== Outputs dir ==="
+            ls -la /home/runner/work/soul_mate_app/soul_mate_app/build/app/outputs/ 2>/dev/null || echo "No outputs dir"
+            ls -la /home/runner/work/soul_mate_app/soul_mate_app/build/app/ 2>/dev/null || echo "No app build dir"
           fi
-          echo "Build succeeded!"
+          echo "=== Full log size ==="
+          wc -l build_output_full.log
+          tail -500 build_output_full.log
+          exit $status
 
-      - name: Upload build log
+      - name: Diagnose Gradle - run directly if build failed
+        if: failure()
+        run: |
+          cd android
+          echo "=== Gradle version ==="
+          ./gradlew --version 2>&1 | head -20
+          echo "=== Available tasks ==="
+          ./gradlew tasks --group=build 2>&1 | head -50
+          echo "=== Run assembleDebug directly ==="
+          ./gradlew assembleDebug --stacktrace 2>&1 | tail -300
+          echo "=== Android outputs ==="
+          find build -type f 2>/dev/null | head -100
+
+      - name: Upload full build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log
-          path: build_output.log
+          name: build-log-full
+          path: build_output_full.log
 
       - uses: actions/upload-artifact@v4
         with:
