@@ -19,11 +19,12 @@ jobs:
       - run: flutter pub get
 
       - run: |
-          flutter build apk --debug --verbose 2>&1 | tee build_output.log
+          flutter build apk --debug 2>&1 | tee build_output.log
           status=${PIPESTATUS[0]}
+          echo "Flutter exit code: $status"
           if [ $status -ne 0 ]; then
-            echo "=== 错误摘要 ==="
-            grep -E "FAILED|BUILD FAILED|What went wrong|Caused by|FAILURE:|Error:" build_output.log | tail -30
+            echo "=== Last 50 lines ==="
+            tail -50 build_output.log
             exit $status
           fi
 
