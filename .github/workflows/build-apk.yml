@@ -18,6 +18,16 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Setup local.properties for Gradle
+        run: |
+          echo "FLUTTER_ROOT="
+          which flutter
+          flutter doctor -v 2>&1 | head -20
+          echo "Creating android/local.properties..."
+          echo "flutter.sdk=" > android/local.properties
+          echo "sdk.dir=" >> android/local.properties
+          cat android/local.properties
+
       - name: Accept Android licenses
         run: |
           yes | flutter doctor --android-licenses 2>&1 || true
