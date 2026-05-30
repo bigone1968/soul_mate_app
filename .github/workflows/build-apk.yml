@@ -18,7 +18,14 @@ jobs:
 
       - run: flutter pub get
 
-      - run: flutter build apk --debug --verbose 2>&1 | tail -200
+      - run: |
+          flutter build apk --debug --verbose 2>&1 | tee build_output.log
+          status=${PIPESTATUS[0]}
+          if [ $status -ne 0 ]; then
+            echo "=== 错误摘要 ==="
+            grep -E "FAILED|BUILD FAILED|What went wrong|Caused by|FAILURE:|Error:" build_output.log | tail -30
+            exit $status
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
