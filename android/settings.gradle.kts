@@ -1,11 +1,14 @@
 pluginManagement {
     val flutterSdkPath =
         run {
-            val properties = java.util.Properties()
-            file("local.properties").inputStream().use { properties.load(it) }
-            val flutterSdkPath = properties.getProperty("flutter.sdk")
-            require(flutterSdkPath != null) { "flutter.sdk not set in local.properties" }
-            flutterSdkPath
+            val localProperties = java.io.File("local.properties")
+            if (localProperties.exists()) {
+                val properties = java.util.Properties()
+                localProperties.inputStream().use { properties.load(it) }
+                val sdk = properties.getProperty("flutter.sdk")
+                if (sdk != null) return@run sdk
+            }
+            System.getenv("FLUTTER_ROOT") ?: error("flutter.sdk not found in local.properties nor FLUTTER_ROOT env")
         }
 
     includeBuild("/packages/flutter_tools/gradle")
