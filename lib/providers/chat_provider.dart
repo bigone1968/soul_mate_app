@@ -82,6 +82,12 @@ class ChatProvider extends ChangeNotifier {
       notifyListeners();
     } else {
       continuousMode = true;
+      isListening = true;
+      isRecording = true;
+      connectionState = 'listening';
+      statusText = '聆听中...';
+      waveAmplitude = 0.7;
+      notifyListeners();
       await _startListenCycle();
     }
   }
