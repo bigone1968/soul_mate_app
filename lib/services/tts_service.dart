@@ -6,7 +6,7 @@ class TtsService {
   final AudioPlayer _player = AudioPlayer();
   bool _isPlaying = false;
 
-  static const String _appId = '7468718291';
+  static const String _appId = '2127709096';
   static const String _token = '73f69906-957b-4a0b-a878-5318dbf568f1';
   static const String _apiUrl = 'https://openspeech.bytedance.com/api/v1/tts';
 
