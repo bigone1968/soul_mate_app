@@ -1,10 +1,16 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:audioplayers/audioplayers.dart';
 
 class TtsService {
   final AudioPlayer _player = AudioPlayer();
   bool _isPlaying = false;
 
-  bool get isPlaying => _isPlaying;
+  static const String _appId = '7468718291';
+  static const String _token = '73f69906-957b-4a0b-a878-5318dbf568f1';
+  static const String _apiUrl = 'https://openspeech.bytedance.com/api/v1/tts';
+
+  String _currentVoiceType = 'BV001_streaming';
 
   void Function()? onComplete;
   void Function()? onStart;
@@ -25,31 +31,74 @@ class TtsService {
     });
   }
 
+  bool get isPlaying => _isPlaying;
+
+  void setVoiceType(String voiceType) {
+    _currentVoiceType = voiceType;
+  }
+
+  String generateReqId() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final random = (now % 100000).toString().padLeft(5, '0');
+    return 'hualing_${now}_$random';
+  }
+
   Future<void> speak(String text) async {
     try {
       await stop();
 
-      final encoded = Uri.encodeComponent(text);
-      final urls = [
-        'https://fanyi.baidu.com/gettts?lan=zh&text=$encoded&spd=3&source=web',
-        'https://tts.baidu.com/text2audio?lan=zh&ie=utf-8&spd=4&text=$encoded',
-      ];
+      if (text.trim().isEmpty) return;
 
-      for (final url in urls) {
-        try {
-          await _player.play(UrlSource(url));
-          _isPlaying = true;
-          onStart?.call();
-          return;
-        } catch (_) {
-          continue;
-        }
+      final reqId = generateReqId();
+      final body = jsonEncode({
+        'app': {
+          'appid': _appId,
+          'token': _token,
+          'cluster': 'volcano_tts',
+        },
+        'user': {
+          'uid': 'hualing_user',
+        },
+        'audio': {
+          'voice_type': _currentVoiceType,
+          'encoding': 'mp3',
+          'speed_ratio': 1.0,
+        },
+        'request': {
+          'reqid': reqId,
+          'text': text,
+          'operation': 'query',
+        },
+      });
+
+      final response = await http.post(
+        Uri.parse(_apiUrl),
+        headers: {
+          'Authorization': 'Bearer; $_token',
+          'Content-Type': 'application/json',
+        },
+        body: body,
+      );
+
+      if (response.statusCode != 200) {
+        return;
       }
 
-      _isPlaying = false;
-    } catch (_) {
-      _isPlaying = false;
-    }
+      final responseData = jsonDecode(response.body);
+
+      final baseResp = responseData['BaseResp'];
+      if (baseResp != null && baseResp['StatusCode'] != 0) {
+        return;
+      }
+
+      final audioData = responseData['data'];
+      if (audioData == null) return;
+
+      final audioBytes = base64Decode(audioData);
+      if (audioBytes.isEmpty) return;
+
+      await _player.play(BytesSource(audioBytes));
+    } catch (_) {}
   }
 
   Future<void> stop() async {
