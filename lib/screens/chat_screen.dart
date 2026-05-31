@@ -27,7 +27,6 @@ class _ChatScreenState extends State<ChatScreen>
   late AnimationController _sleepOverlayController;
   StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
   bool _hasGyroscope = false;
-  bool _showOverlay = true;
   bool _sleepMode = false;
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -414,46 +413,6 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
   Widget _buildInputArea(ChatProvider chatProvider) {
-    if (_showOverlay) {
-      return GestureDetector(
-        onTap: () {
-          setState(() => _showOverlay = false);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFFC0392B),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFC0392B).withOpacity(0.2),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.mic,
-                  color: const Color(0xFFC0392B).withOpacity(0.7),
-                  size: 30,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const _PulseText(text: '轻触屏幕 与花灵开始对话'),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Container(
       padding: const EdgeInsets.only(left: 16, right: 8, bottom: 8, top: 8),
       child: Row(
@@ -469,12 +428,12 @@ class _ChatScreenState extends State<ChatScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: chatProvider.continuousMode
+                  color: chatProvider.isListening || chatProvider.continuousMode
                       ? const Color(0xFFE74C3C)
                       : const Color(0xFFC0392B),
-                  width: chatProvider.continuousMode ? 2.5 : 2,
+                  width: chatProvider.isListening || chatProvider.continuousMode ? 2.5 : 2,
                 ),
-                boxShadow: chatProvider.continuousMode
+                boxShadow: chatProvider.isListening || chatProvider.continuousMode
                     ? [
                         BoxShadow(
                           color: const Color(0xFFE74C3C).withOpacity(0.5),
@@ -485,8 +444,10 @@ class _ChatScreenState extends State<ChatScreen>
                     : null,
               ),
               child: Icon(
-                chatProvider.continuousMode ? Icons.headset_mic : Icons.mic,
-                color: chatProvider.continuousMode
+                chatProvider.isListening || chatProvider.continuousMode
+                    ? Icons.headset_mic
+                    : Icons.mic,
+                color: chatProvider.isListening || chatProvider.continuousMode
                     ? const Color(0xFFE74C3C)
                     : const Color(0xFFC0392B),
                 size: 28,
@@ -679,52 +640,6 @@ class _TwinklingStarState extends State<_TwinklingStar>
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(opacity),
             shape: BoxShape.circle,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _PulseText extends StatefulWidget {
-  final String text;
-
-  const _PulseText({required this.text});
-
-  @override
-  State<_PulseText> createState() => _PulseTextState();
-}
-
-class _PulseTextState extends State<_PulseText>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Text(
-          widget.text,
-          style: TextStyle(
-            fontSize: 13,
-            color: const Color(0xFFC0392B)
-                .withOpacity(0.4 + _controller.value * 0.6),
           ),
         );
       },
