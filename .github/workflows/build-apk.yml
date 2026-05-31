@@ -12,18 +12,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        id: flutter-setup
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.44.0'
 
       - run: flutter pub get
 
+      - name: Setup local.properties
+        run: |
+          FLUTTER_SDK=$(dirname $(dirname $(which flutter)))
+          echo "Flutter SDK: $FLUTTER_SDK"
+          echo "flutter.sdk=$FLUTTER_SDK" > android/local.properties
+          echo "sdk.dir=$ANDROID_HOME" >> android/local.properties
+          echo "Created local.properties:"
+          cat android/local.properties
+
       - name: Accept Android licenses
         run: |
           yes | flutter doctor --android-licenses 2>&1 || true
-          flutter doctor -v | grep -E "Android toolchain|licenses" || true
 
-      - name: Build APK
+      - name: Build APK (try flutter)
         id: build
         continue-on-error: true
         run: |
@@ -46,6 +56,11 @@ jobs:
           if [ $APK_COUNT -eq 0 ]; then
             echo "=== Build tree ==="
             find /home/runner/work/soul_mate_app/soul_mate_app/build -type d 2>/dev/null | head -50
+            echo "=== Run gradlew with --no-daemon ==="
+            cd android
+            ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tail -200
+            echo "=== APK search after direct gradlew ==="
+            find /home/runner/work/soul_mate_app -name "*.apk" -type f 2>/dev/null
           fi
 
       - name: Upload build log

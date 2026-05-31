@@ -10,6 +10,7 @@ import '../providers/chat_provider.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/eye_painter.dart';
 import '../widgets/wave_painter.dart';
+import '../widgets/petal_painter.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -22,9 +23,12 @@ class _ChatScreenState extends State<ChatScreen>
     with TickerProviderStateMixin {
   late Ticker _eyeTicker;
   late AnimationController _waveController;
+  late AnimationController _petalController;
+  late AnimationController _sleepOverlayController;
   StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
   bool _hasGyroscope = false;
   bool _showOverlay = true;
+  bool _sleepMode = false;
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   int _lastMessageCount = 0;
@@ -38,6 +42,9 @@ class _ChatScreenState extends State<ChatScreen>
   double _currentPupilY = 0.0;
   double _eyeElapsed = 0.0;
 
+  List<FallingPetal>? _petals;
+  double _petalTime = 0;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +53,16 @@ class _ChatScreenState extends State<ChatScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+
+    _petalController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 100),
+    )..repeat();
+
+    _sleepOverlayController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
 
     _eyeTicker = createTicker(_onEyeTick)..start();
 
@@ -128,10 +145,24 @@ class _ChatScreenState extends State<ChatScreen>
     });
   }
 
+  void _toggleSleepMode() {
+    if (_sleepMode) {
+      _sleepOverlayController.reverse();
+      setState(() => _sleepMode = false);
+      context.read<ChatProvider>().setExpression('neutral');
+    } else {
+      _sleepOverlayController.forward();
+      setState(() => _sleepMode = true);
+      context.read<ChatProvider>().setExpression('sleepy');
+    }
+  }
+
   @override
   void dispose() {
     _eyeTicker.dispose();
     _waveController.dispose();
+    _petalController.dispose();
+    _sleepOverlayController.dispose();
     _gyroscopeSubscription?.cancel();
     _textController.dispose();
     _scrollController.dispose();
@@ -149,15 +180,84 @@ class _ChatScreenState extends State<ChatScreen>
     }
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildCompanionArea(chatProvider),
-            _buildWaveArea(chatProvider),
-            Expanded(child: _buildChatArea(chatProvider)),
-            _buildInputArea(chatProvider),
-          ],
-        ),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                _buildTopBar(chatProvider),
+                _buildCompanionArea(chatProvider),
+                _buildWaveArea(chatProvider),
+                Expanded(child: _buildChatArea(chatProvider)),
+                _buildInputArea(chatProvider),
+              ],
+            ),
+          ),
+          if (_sleepMode)
+            _buildSleepOverlay(chatProvider),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopBar(ChatProvider chatProvider) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: chatProvider.connectionState == 'speaking'
+                  ? const Color(0xFFE74C3C)
+                  : chatProvider.connectionState == 'listening'
+                      ? const Color(0xFF2ECC71)
+                      : const Color(0xFFC0392B),
+              boxShadow: [
+                BoxShadow(
+                  color: (chatProvider.connectionState == 'speaking'
+                          ? const Color(0xFFE74C3C)
+                          : chatProvider.connectionState == 'listening'
+                              ? const Color(0xFF2ECC71)
+                              : const Color(0xFFC0392B))
+                      .withOpacity(0.4),
+                  blurRadius: 4,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            chatProvider.statusText,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFFD4C4B5),
+              letterSpacing: 1,
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: _toggleSleepMode,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: _sleepMode
+                    ? const Color(0xFFC0392B).withOpacity(0.2)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                _sleepMode ? Icons.nightlight_round : Icons.nightlight,
+                size: 18,
+                color: _sleepMode
+                    ? const Color(0xFFC0392B)
+                    : const Color(0xFF8A7A6B),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -170,91 +270,65 @@ class _ChatScreenState extends State<ChatScreen>
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return Stack(
-            children: [
-              ...List.generate(20, (index) {
-                final seed = index * 137.5;
-                final x = (seed * 7.3) % constraints.maxWidth;
-                final y = (seed * 11.7) % constraints.maxHeight;
-                final size = 1.0 + (seed % 3) * 0.5;
-                final phase = (seed * 0.1) % (pi * 2);
-                return Positioned(
-                  left: x,
-                  top: y,
-                  child: _TwinklingStar(size: size, phase: phase),
-                );
-              }),
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: EyePainter(
-                    pupilX: chatProvider.pupilX,
-                    pupilY: chatProvider.pupilY,
-                    blinkProgress: _blinkProgress,
-                    expression: chatProvider.currentExpression,
+          return AnimatedBuilder(
+            animation: _petalController,
+            builder: (context, _) {
+              _petalTime = _petalController.value * 100;
+              if (_petals == null) {
+                _petals = generatePetals(8, constraints.maxWidth, constraints.maxHeight);
+              }
+              return Stack(
+                children: [
+                  CustomPaint(
+                    size: Size(constraints.maxWidth, constraints.maxHeight),
+                    painter: PetalPainter(
+                      petals: _petals!,
+                      time: _petalTime,
+                    ),
                   ),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
+                  ...List.generate(12, (index) {
+                    final seed = index * 137.5;
+                    final x = (seed * 7.3) % constraints.maxWidth;
+                    final y = (seed * 11.7) % constraints.maxHeight;
+                    final size = 1.0 + (seed % 3) * 0.5;
+                    final phase = (seed * 0.1) % (pi * 2);
+                    return Positioned(
+                      left: x,
+                      top: y,
+                      child: _TwinklingStar(size: size, phase: phase),
+                    );
+                  }),
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: EyePainter(
+                        pupilX: chatProvider.pupilX,
+                        pupilY: chatProvider.pupilY,
+                        blinkProgress: _blinkProgress,
+                        expression: _sleepMode ? 'sleepy' : chatProvider.currentExpression,
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.black26,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: chatProvider.connectionState == 'speaking'
-                                ? const Color(0xFFE74C3C)
-                                : chatProvider.connectionState == 'listening'
-                                    ? const Color(0xFF2ECC71)
-                                    : const Color(0xFFC0392B),
-                            shape: BoxShape.circle,
-                          ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 40,
+                      decoration: const BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment.bottomCenter,
+                          radius: 0.8,
+                          colors: [
+                            Color(0x55C0392B),
+                            Color(0x00C0392B),
+                          ],
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          chatProvider.statusText,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFFD4C4B5),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  height: 40,
-                  decoration: const BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.bottomCenter,
-                      radius: 0.8,
-                      colors: [
-                        Color(0x55C0392B),
-                        Color(0x00C0392B),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           );
         },
       ),
@@ -286,7 +360,9 @@ class _ChatScreenState extends State<ChatScreen>
                         ? '聆听中...'
                         : chatProvider.isSpeaking
                             ? '花灵正在说话...'
-                            : '点击话筒开始对话',
+                            : _sleepMode
+                                ? '花灵陪着你入眠...'
+                                : '点击话筒开始对话',
             style: const TextStyle(
               fontSize: 11,
               color: Color(0xFF8A7A6B),
@@ -299,13 +375,26 @@ class _ChatScreenState extends State<ChatScreen>
 
   Widget _buildChatArea(ChatProvider chatProvider) {
     if (chatProvider.messages.isEmpty) {
-      return const Center(
-        child: Text(
-          '彼岸花开，花灵在听',
-          style: TextStyle(
-            fontSize: 14,
-            color: Color(0xFF8A7A6B),
-          ),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.spa,
+              size: 32,
+              color: const Color(0xFFC0392B).withOpacity(0.3),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '彼岸花开，花灵在听',
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF8A7A6B),
+                letterSpacing: 2,
+                fontWeight: FontWeight.w300,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -335,17 +424,29 @@ class _ChatScreenState extends State<ChatScreen>
           child: Column(
             children: [
               Container(
-                width: 64,
-                height: 64,
+                width: 72,
+                height: 72,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: const Color(0xFFC0392B),
                     width: 2,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFC0392B).withOpacity(0.2),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.mic,
+                  color: const Color(0xFFC0392B).withOpacity(0.7),
+                  size: 30,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               const _PulseText(text: '轻触屏幕 与花灵开始对话'),
             ],
           ),
@@ -442,6 +543,97 @@ class _ChatScreenState extends State<ChatScreen>
       ),
     );
   }
+
+  Widget _buildSleepOverlay(ChatProvider chatProvider) {
+    return AnimatedBuilder(
+      animation: _sleepOverlayController,
+      builder: (context, _) {
+        return IgnorePointer(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFF050208).withOpacity(0.3 + _sleepOverlayController.value * 0.5),
+                  const Color(0xFF0A050E).withOpacity(0.5 + _sleepOverlayController.value * 0.4),
+                ],
+              ),
+            ),
+            child: Column(
+              children: [
+                const Spacer(flex: 3),
+                Opacity(
+                  opacity: 0.5 + _sleepOverlayController.value * 0.3,
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.nights_stay,
+                        size: 32,
+                        color: const Color(0xFF8A7A6B).withOpacity(0.6),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        '晚安',
+                        style: TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w200,
+                          letterSpacing: 8,
+                          color: Color(0xFFD4C4B5),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        '花灵会一直守护着你',
+                        style: TextStyle(
+                          fontSize: 14,
+                          letterSpacing: 3,
+                          color: Color(0xFF8A7A6B),
+                          fontWeight: FontWeight.w300,
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      _SleepBreathingRing(
+                        controller: _sleepOverlayController,
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(flex: 4),
+                Opacity(
+                  opacity: _sleepOverlayController.value,
+                  child: GestureDetector(
+                    onTap: _toggleSleepMode,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 40),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: const Color(0xFFC0392B).withOpacity(0.3),
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        '轻触唤醒',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF8A7A6B),
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _TwinklingStar extends StatefulWidget {
@@ -533,6 +725,55 @@ class _PulseTextState extends State<_PulseText>
             fontSize: 13,
             color: const Color(0xFFC0392B)
                 .withOpacity(0.4 + _controller.value * 0.6),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SleepBreathingRing extends StatelessWidget {
+  final AnimationController controller;
+
+  const _SleepBreathingRing({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return Container(
+          width: 60 + controller.value * 20,
+          height: 60 + controller.value * 20,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: const Color(0xFFC0392B).withOpacity(0.1 + controller.value * 0.1),
+              width: 1,
+            ),
+          ),
+          child: Center(
+            child: Container(
+              width: 40 + controller.value * 15,
+              height: 40 + controller.value * 15,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFFC0392B).withOpacity(0.15 + controller.value * 0.15),
+                  width: 1.5,
+                ),
+              ),
+              child: Center(
+                child: Container(
+                  width: 20 + controller.value * 10,
+                  height: 20 + controller.value * 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFC0392B).withOpacity(0.1 + controller.value * 0.08),
+                  ),
+                ),
+              ),
+            ),
           ),
         );
       },
