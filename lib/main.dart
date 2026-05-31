@@ -44,7 +44,7 @@ void main() async {
       systemNavigationBarColor: Color(0xFF0D0A14),
       systemNavigationBarIconBrightness: Brightness.light,
     ));
-    runApp(SoulMateApp(
+    runApp(FlowerApp(
       apiKey: kDeepSeekApiKey,
       iflytekAppId: kIflytekAppId,
       iflytekApiKey: kIflytekApiKey,
