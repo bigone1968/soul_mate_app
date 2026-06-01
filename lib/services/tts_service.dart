@@ -74,7 +74,7 @@ class TtsService {
       final response = await http.post(
         Uri.parse(_apiUrl),
         headers: {
-          'Authorization': 'Bearer; $_token',
+          'Authorization': 'Bearer $_token',
           'Content-Type': 'application/json',
         },
         body: body,
