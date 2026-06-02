@@ -28,8 +28,23 @@ jobs:
       - name: Build APK
         run: flutter build apk --debug
 
+      - name: Find APK
+        id: find-apk
+        run: |
+          echo "Searching for APK files..."
+          find /home/runner/work/soul_mate_app/soul_mate_app/build -name "*.apk" -type f 2>/dev/null
+          APK_PATH=$(find /home/runner/work/soul_mate_app/soul_mate_app/build -name "*.apk" -type f 2>/dev/null | head -1)
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          if [ -n "$APK_PATH" ]; then
+            echo "Found APK: $APK_PATH"
+            ls -lh "$APK_PATH"
+          else
+            echo "ERROR: No APK found!"
+            exit 1
+          fi
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: ${{ steps.find-apk.outputs.apk_path }}
