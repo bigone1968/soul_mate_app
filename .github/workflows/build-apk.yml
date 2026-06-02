@@ -12,65 +12,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Setup Flutter
-        id: flutter-setup
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.44.0'
+          flutter-version: '3.29.0'
 
       - run: flutter pub get
 
-      - name: Setup local.properties
-        run: |
-          FLUTTER_SDK=$(dirname $(dirname $(which flutter)))
-          echo "Flutter SDK: $FLUTTER_SDK"
-          echo "flutter.sdk=$FLUTTER_SDK" > android/local.properties
-          echo "sdk.dir=$ANDROID_HOME" >> android/local.properties
-          echo "Created local.properties:"
-          cat android/local.properties
+      - name: Build APK
+        run: flutter build apk --debug
 
-      - name: Accept Android licenses
-        run: |
-          yes | flutter doctor --android-licenses 2>&1 || true
-
-      - name: Build APK (try flutter)
-        id: build
-        continue-on-error: true
-        run: |
-          flutter build apk --debug 2>&1 | tee build_output.log
-          exit ${PIPESTATUS[0]}
-
-      - name: Find and upload APK
-        run: |
-          echo "=== Search for APK files ==="
-          find /home/runner/work/soul_mate_app -name "*.apk" -type f 2>/dev/null
-          APK_COUNT=$(find /home/runner/work/soul_mate_app -name "*.apk" -type f 2>/dev/null | wc -l)
-          echo "Found $APK_COUNT APK files"
-          if [ $APK_COUNT -gt 0 ]; then
-            mkdir -p build/app/outputs/flutter-apk
-            find /home/runner/work/soul_mate_app -name "*.apk" -type f 2>/dev/null | while read apk; do
-              cp "$apk" build/app/outputs/flutter-apk/
-              echo "Copied: $apk"
-            done
-          fi
-          if [ $APK_COUNT -eq 0 ]; then
-            echo "=== Build tree ==="
-            find /home/runner/work/soul_mate_app/soul_mate_app/build -type d 2>/dev/null | head -50
-            echo "=== Run gradlew with --no-daemon ==="
-            cd android
-            ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tail -200
-            echo "=== APK search after direct gradlew ==="
-            find /home/runner/work/soul_mate_app -name "*.apk" -type f 2>/dev/null
-          fi
-
-      - name: Upload build log
-        if: always()
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build-log
-          path: build_output.log
-
-      - uses: actions/upload-artifact@v4
-        with:
           name: app-debug
-          path: build/app/outputs/flutter-apk/*.apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
